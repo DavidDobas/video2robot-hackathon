@@ -99,7 +99,9 @@ RUN uv pip install gdown && \
 # ----------------------------------------------------------------------------
 # Run install script (builds CUDA extensions, installs all Python deps)
 # ----------------------------------------------------------------------------
-RUN sed -i 's/assert torch.cuda.is_available.*/pass  # CUDA check skipped at build time/' scripts/install_uv.sh
+# Fix idempotency check: 'can_import lietorch' finds the source tree in cwd,
+# skipping the build. Check for the compiled extension instead.
+RUN sed -i 's/if can_import lietorch; then/if can_import lietorch_backends; then/' scripts/install_uv.sh
 RUN SKIP_CUDA_CHECK=1 bash scripts/install_uv.sh
 
 # ----------------------------------------------------------------------------

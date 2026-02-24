@@ -182,7 +182,7 @@ fi
 # Step 4: Build lietorch CUDA extension
 # ----------------------------------------------------------------------------
 echo ""
-if can_import lietorch; then
+if can_import lietorch_backends; then
     echo "[4/8] lietorch: already installed, skipping build"
 else
     echo "[4/8] Building lietorch..."
