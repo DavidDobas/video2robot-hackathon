@@ -59,6 +59,40 @@ export CC=/usr/bin/gcc-11
 export CXX=/usr/bin/g++-11
 export CUDAHOSTCXX=/usr/bin/g++-11
 
+# Auto-detect CUDA_HOME if not set
+if [ -z "$CUDA_HOME" ]; then
+    for candidate in \
+        /usr/local/cuda \
+        /usr/lib/nvidia-cuda-toolkit \
+        /usr/local/cuda-12.8 \
+        /usr/local/cuda-12.6 \
+        /usr/local/cuda-12.4 \
+        /usr/local/cuda-12.1 \
+        /usr/local/cuda-12.0
+    do
+        if [ -f "$candidate/bin/nvcc" ]; then
+            export CUDA_HOME="$candidate"
+            break
+        fi
+    done
+fi
+
+if [ -z "$CUDA_HOME" ]; then
+    echo "ERROR: Could not find CUDA installation. Set CUDA_HOME manually:"
+    echo "  export CUDA_HOME=/path/to/cuda"
+    exit 1
+fi
+echo "  CUDA_HOME: $CUDA_HOME"
+export PATH="$CUDA_HOME/bin:$PATH"
+export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
+
+# On Ubuntu apt installs, cuda.h may live in /usr/lib/cuda/include separately
+# (nvidia-cuda-toolkit splits headers from binaries). Add it to CPATH if present.
+if [ -f "/usr/lib/cuda/include/cuda.h" ] && [ "$CUDA_HOME" != "/usr/lib/cuda" ]; then
+    export CPATH="/usr/lib/cuda/include:${CPATH:-}"
+    echo "  CPATH patched: /usr/lib/cuda/include (Ubuntu split toolkit)"
+fi
+
 # ----------------------------------------------------------------------------
 # Step 1: PyTorch check
 # Already installed before running this script. Just verify.
