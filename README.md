@@ -123,6 +123,7 @@ python scripts/run_pipeline.py --project data/video_001
 python scripts/generate_video.py --action "Action sequence: The subject walks forward."
 python scripts/extract_pose.py --project data/video_001
 python scripts/convert_to_robot.py --project data/video_001
+python scripts/convert_to_lafan_csv.py --project data/video_001
 
 # Visualization (auto env switching)
 python scripts/visualize.py --project data/video_001
