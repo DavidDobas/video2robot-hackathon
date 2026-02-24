@@ -18,8 +18,9 @@
 #   2. Create venv and install PyTorch:
 #        uv venv .venv --python 3.11 --prompt video2robot
 #        source .venv/bin/activate
-#        UV_HTTP_TIMEOUT=300 uv pip install torch torchvision torchaudio xformers \
-#          --index-url https://download.pytorch.org/whl/cu124
+#        UV_HTTP_TIMEOUT=300 uv pip install torch==2.6.0 torchvision torchaudio xformers \
+#          --index-url https://download.pytorch.org/whl/cu128
+#        uv pip install pip  # needed by chumpy's setup.py
 #   3. Run this script:
 #        bash scripts/install_uv.sh
 #
@@ -114,7 +115,7 @@ can_import() { python -c "import $1" 2>/dev/null; }
 # Step 1: PyTorch check
 # ----------------------------------------------------------------------------
 echo ""
-echo "[1/9] Verifying PyTorch + CUDA..."
+echo "[1/8] Verifying PyTorch + CUDA..."
 python -c "
 import torch
 assert torch.cuda.is_available(), 'CUDA not available — check your PyTorch install'
@@ -130,7 +131,7 @@ CUDA_TAG=$(python -c "import torch; v=torch.version.cuda.replace('.',''); print(
 # uv pip install is fast and idempotent — always run to catch any missing deps
 # ----------------------------------------------------------------------------
 echo ""
-echo "[2/9] Installing Python dependencies..."
+echo "[2/8] Installing Python dependencies..."
 uv pip install -r "$PHMR_ROOT/requirements.txt"
 uv pip install -e "$REPO_ROOT/third_party/GMR"
 uv pip install -e "$REPO_ROOT"
@@ -139,7 +140,7 @@ uv pip install -e "$REPO_ROOT"
 # Step 3: Submodules + Eigen (idempotent by directory checks)
 # ----------------------------------------------------------------------------
 echo ""
-echo "[3/9] Cloning submodules and Eigen..."
+echo "[3/8] Cloning submodules and Eigen..."
 
 cd "$REPO_ROOT"
 if [ -f ".gitmodules" ]; then
@@ -168,9 +169,9 @@ fi
 # ----------------------------------------------------------------------------
 echo ""
 if can_import lietorch; then
-    echo "[4/9] lietorch: already installed, skipping build"
+    echo "[4/8] lietorch: already installed, skipping build"
 else
-    echo "[4/9] Building lietorch..."
+    echo "[4/8] Building lietorch..."
     cd "$PHMR_ROOT/pipeline/droidcalib"
 
     cat > setup.py << 'EOF'
@@ -217,9 +218,9 @@ fi
 # ----------------------------------------------------------------------------
 echo ""
 if can_import droid_backends_intr; then
-    echo "[5/9] droid_backends_intr: already installed, skipping build"
+    echo "[5/8] droid_backends_intr: already installed, skipping build"
 else
-    echo "[5/9] Building droid_backends_intr..."
+    echo "[5/8] Building droid_backends_intr..."
     cd "$PHMR_ROOT/pipeline/droidcalib"
 
     # PyTorch 2.9 API compatibility
@@ -272,9 +273,9 @@ echo ""
 cd "$PHMR_ROOT"
 
 if can_import torch_scatter && can_import chumpy; then
-    echo "[6/9] torch_scatter + chumpy: already installed, skipping"
+    echo "[6/8] torch_scatter + chumpy: already installed, skipping"
 else
-    echo "[6/9] Installing torch_scatter and chumpy..."
+    echo "[6/8] Installing torch_scatter and chumpy..."
 
     if ! can_import torch_scatter; then
         echo "  Installing torch_scatter from PyG pre-built wheel..."
@@ -299,9 +300,9 @@ fi
 echo ""
 
 if can_import detectron2 && can_import sam2; then
-    echo "[7/9] detectron2 + sam2: already installed, skipping"
+    echo "[7/8] detectron2 + sam2: already installed, skipping"
 else
-    echo "[7/9] Installing detectron2 + sam2..."
+    echo "[7/8] Installing detectron2 + sam2..."
 
     if ! can_import detectron2; then
         uv pip install 'git+https://github.com/facebookresearch/detectron2.git' --no-build-isolation

@@ -73,7 +73,12 @@ mv /tmp/smpl_unzip/SMPL_python_v.1.1.0/smpl/models/basicmodel_m_lbs_10_207_0_v1.
     "$PHMR_ROOT/data/body_models/smpl/SMPL_MALE.pkl"
 rm -rf /tmp/smpl_unzip /tmp/smpl.zip
 
-# Supplementary file (non-licensed)
+# Supplementary files — SMPL-X derived conversion matrices and regressors
+# Downloads: J_regressor_h36m.npy, smpl_mean_params.npz, smplx2smpl.pkl, smplx2smpl_joints.npy
+gdown --folder -O "$PHMR_ROOT/data/" \
+    https://drive.google.com/drive/folders/1JU7CuU2rKkwD7WWjvSZJKpQFFk_Z6NL7?usp=share_link
+
+# Additional supplementary smplx file
 gdown 1v9Qy7ZXWcTM8_a9K2nSLyyVrJMFYcUOk -O "$PHMR_ROOT/data/body_models/smplx/"
 
 # GMR symlink
