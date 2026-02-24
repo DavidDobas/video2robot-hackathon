@@ -303,20 +303,7 @@ fi
 # Step 9: SMPL / SMPL-X body models check + GMR symlink
 # ----------------------------------------------------------------------------
 echo ""
-echo "[9/9] Checking body models and GMR symlink..."
-
-if [ ! -d "$PHMR_ROOT/data/body_models/smplx" ] || \
-   [ ! -f "$PHMR_ROOT/data/body_models/smpl/SMPL_NEUTRAL.pkl" ]; then
-    echo ""
-    echo "  ┌─────────────────────────────────────────────────────┐"
-    echo "  │  Body models not found. Run after registration:     │"
-    echo "  │    bash third_party/PromptHMR/scripts/fetch_smplx.sh│"
-    echo "  │  Register at: https://smpl-x.is.tue.mpg.de          │"
-    echo "  │               https://smpl.is.tue.mpg.de            │"
-    echo "  └─────────────────────────────────────────────────────┘"
-else
-    echo "  Body models: OK"
-fi
+echo "[9/9] Creating GMR symlink..."
 
 # GMR symlink: GMR expects smplx at assets/body_models/smplx/
 GMR_DIR="$REPO_ROOT/third_party/GMR"
@@ -371,6 +358,5 @@ print('All done!')
 
 echo ""
 echo "============================================"
-echo "Next: download body models (registration required)"
-echo "  bash third_party/PromptHMR/scripts/fetch_smplx.sh"
+echo "Installation complete!"
 echo "============================================"
