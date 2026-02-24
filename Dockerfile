@@ -39,13 +39,15 @@ ENV PYTHONUNBUFFERED=1
 # hardcode gcc-11 in their build system regardless of CC env var
 # ninja-build dramatically speeds up CUDA extension compilation
 # ----------------------------------------------------------------------------
-RUN apt-get update && apt-get install -y \
+    RUN apt-get update && apt-get install -y \
     gcc-12 g++-12 \
     git wget curl unzip \
     libsuitesparse-dev \
     ninja-build \
     python3-dev \
     ca-certificates \
+    libgl1 \
+    libglib2.0-0 \
     && ln -sf /usr/bin/gcc-12 /usr/bin/gcc-11 \
     && ln -sf /usr/bin/g++-12 /usr/bin/g++-11 \
     && rm -rf /var/lib/apt/lists/*
@@ -89,11 +91,15 @@ RUN uv pip install pip
 # Download and extract data zip (checkpoints, wheels, annotations, examples)
 # Excludes body_models (licensed, downloaded at runtime)
 # ----------------------------------------------------------------------------
-ARG DATA_ZIP_ID=1nR10gHr0MUIziZnkolb07w8RtnNAuljv
-
-RUN uv pip install gdown && \
-    gdown ${DATA_ZIP_ID} -O /tmp/video2robot_data.zip && \
-    unzip -o /tmp/video2robot_data.zip -d third_party/PromptHMR/data/ && \
+# TEMPORARY: using local zip instead of gdown (Google Drive rate-limited)
+# To revert: replace COPY+RUN below with the gdown block:
+#   ARG DATA_ZIP_ID=1nR10gHr0MUIziZnkolb07w8RtnNAuljv
+#   RUN uv pip install gdown && \
+#       gdown ${DATA_ZIP_ID} -O /tmp/video2robot_data.zip && \
+#       unzip -o /tmp/video2robot_data.zip -d third_party/PromptHMR/data/ && \
+#       rm /tmp/video2robot_data.zip
+COPY video2robot_data.zip /tmp/video2robot_data.zip
+RUN unzip -o /tmp/video2robot_data.zip -d third_party/PromptHMR/data/ && \
     rm /tmp/video2robot_data.zip
 
 # ----------------------------------------------------------------------------
