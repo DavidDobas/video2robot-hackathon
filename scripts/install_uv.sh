@@ -134,6 +134,9 @@ echo ""
 echo "[2/8] Installing Python dependencies..."
 uv pip install -r "$PHMR_ROOT/requirements.txt"
 uv pip install -e "$REPO_ROOT/third_party/GMR"
+# GMR requires smplx from git HEAD which defaults to num_betas=16, breaking PromptHMR
+# checkpoints (trained with 10 betas). Force PyPI 0.1.28 which keeps num_betas=10.
+uv pip install --reinstall smplx==0.1.28
 uv pip install -e "$REPO_ROOT"
 
 # ----------------------------------------------------------------------------

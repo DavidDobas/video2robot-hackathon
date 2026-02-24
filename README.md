@@ -1,3 +1,30 @@
+# video2robot - hackathon README
+
+If you deployed our container, everything should be installed. 
+
+First, activate the virtual environment of this project
+```bash
+source .venv/bin/activate
+```
+
+Then, in `data` folder, make folder for your video. Upload your video there and name it `original.mp4`
+
+Then you can run
+```bash
+python scripts/process_video.py --project data/{your-folder-name}
+```
+
+Or you can run each step individually
+```bash
+python scripts/extract_pose.py --project data/{your-folder-name}
+python scripts/convert_to_robot.py --project data/{your-folder-name}
+python scripts/convert_to_lafan_csv.py --project data/{your-folder-name}
+```
+
+Finally, in your folder, you will find a file called `robot_motion.csv`. You can use that in training in mjlab.
+
+Below is the original README for video2robot
+
 # video2robot
 
 End-to-end pipeline: Video (or Prompt) → Human Pose Extraction → Robot Motion Conversion
@@ -124,6 +151,9 @@ python scripts/generate_video.py --action "Action sequence: The subject walks fo
 python scripts/extract_pose.py --project data/video_001
 python scripts/convert_to_robot.py --project data/video_001
 python scripts/convert_to_lafan_csv.py --project data/video_001
+
+# Run pose extraction + robot conversion + LAFAN CSV in one command
+python scripts/process_video.py --project data/video_001
 
 # Visualization (auto env switching)
 python scripts/visualize.py --project data/video_001
