@@ -99,6 +99,7 @@ RUN uv pip install gdown && \
 # ----------------------------------------------------------------------------
 # Run install script (builds CUDA extensions, installs all Python deps)
 # ----------------------------------------------------------------------------
+RUN sed -i 's/assert torch.cuda.is_available.*/pass  # CUDA check skipped at build time/' scripts/install_uv.sh
 RUN SKIP_CUDA_CHECK=1 bash scripts/install_uv.sh
 
 # ----------------------------------------------------------------------------

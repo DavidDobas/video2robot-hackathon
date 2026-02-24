@@ -131,18 +131,24 @@ fi
 TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
 CUDA_TAG=$(python -c "import torch; v=torch.version.cuda.replace('.',''); print(f'cu{v}')")
 
+# Pin torch so no subsequent install can silently upgrade it
+TORCH_PIN=$(python -c "import torch; v=torch.__version__.split('+')[0]; print(f'torch=={v}')")
+TORCH_CONSTRAINTS="$(mktemp /tmp/torch-constraints-XXXX.txt)"
+echo "$TORCH_PIN" > "$TORCH_CONSTRAINTS"
+echo "  Pinned: $TORCH_PIN (constraints: $TORCH_CONSTRAINTS)"
+
 # ----------------------------------------------------------------------------
 # Step 2: PromptHMR + GMR + video2robot Python dependencies
 # uv pip install is fast and idempotent — always run to catch any missing deps
 # ----------------------------------------------------------------------------
 echo ""
 echo "[2/8] Installing Python dependencies..."
-uv pip install -r "$PHMR_ROOT/requirements.txt"
-uv pip install -e "$REPO_ROOT/third_party/GMR"
+uv pip install --constraint "$TORCH_CONSTRAINTS" -r "$PHMR_ROOT/requirements.txt"
+uv pip install --constraint "$TORCH_CONSTRAINTS" -e "$REPO_ROOT/third_party/GMR"
 # GMR requires smplx from git HEAD which defaults to num_betas=16, breaking PromptHMR
 # checkpoints (trained with 10 betas). Force PyPI 0.1.28 which keeps num_betas=10.
-uv pip install --reinstall smplx==0.1.28
-uv pip install -e "$REPO_ROOT"
+uv pip install --constraint "$TORCH_CONSTRAINTS" --reinstall smplx==0.1.28
+uv pip install --constraint "$TORCH_CONSTRAINTS" -e "$REPO_ROOT"
 
 # ----------------------------------------------------------------------------
 # Step 3: Submodules + Eigen (idempotent by directory checks)
@@ -218,7 +224,7 @@ setup(
 EOF
 
     rm -rf build/
-    python setup.py install
+    pip install --no-build-isolation .
 fi
 
 # ----------------------------------------------------------------------------
@@ -270,7 +276,7 @@ setup(
 EOF
 
     rm -rf build/
-    python setup.py install
+    pip install --no-build-isolation .
 fi
 
 # ----------------------------------------------------------------------------
@@ -287,9 +293,9 @@ else
 
     if ! can_import torch_scatter; then
         echo "  Installing torch_scatter from PyG pre-built wheel..."
-        uv pip install torch-scatter \
+        uv pip install --constraint "$TORCH_CONSTRAINTS" torch-scatter \
             -f "https://data.pyg.org/whl/torch-${TORCH_VERSION}.html" \
-            || uv pip install torch_scatter --no-build-isolation
+            || uv pip install --constraint "$TORCH_CONSTRAINTS" torch_scatter --no-build-isolation
     fi
 
     if ! can_import chumpy; then
@@ -298,7 +304,7 @@ else
             rm -rf python_libs/chumpy
             git clone https://github.com/Arthur151/chumpy python_libs/chumpy
         fi
-        uv pip install -e python_libs/chumpy --no-build-isolation
+        uv pip install --constraint "$TORCH_CONSTRAINTS" -e python_libs/chumpy --no-build-isolation
     fi
 fi
 
@@ -313,15 +319,15 @@ else
     echo "[7/8] Installing detectron2 + sam2..."
 
     if ! can_import detectron2; then
-        uv pip install 'git+https://github.com/facebookresearch/detectron2.git' --no-build-isolation
+        uv pip install --constraint "$TORCH_CONSTRAINTS" 'git+https://github.com/facebookresearch/detectron2.git' --no-build-isolation
     fi
 
     if ! can_import sam2; then
         if [ -f "data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl" ]; then
-            uv pip install data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl
+            uv pip install --constraint "$TORCH_CONSTRAINTS" data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl
         else
             echo "  WARNING: data/wheels/sam2-*.whl not found, installing from PyPI..."
-            uv pip install sam2
+            uv pip install --constraint "$TORCH_CONSTRAINTS" sam2
         fi
     fi
 fi
