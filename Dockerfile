@@ -46,8 +46,8 @@ RUN apt-get update && apt-get install -y \
     ninja-build \
     python3-dev \
     ca-certificates \
-    && ln -s /usr/bin/gcc-12 /usr/bin/gcc-11 \
-    && ln -s /usr/bin/g++-12 /usr/bin/g++-11 \
+    && ln -sf /usr/bin/gcc-12 /usr/bin/gcc-11 \
+    && ln -sf /usr/bin/g++-12 /usr/bin/g++-11 \
     && rm -rf /var/lib/apt/lists/*
 
 # CUDA environment
@@ -80,7 +80,7 @@ ENV VIRTUAL_ENV=/workspace/video2robot/.venv
 ENV PATH="/workspace/video2robot/.venv/bin:${PATH}"
 
 RUN uv pip install torch==2.6.0 torchvision torchaudio xformers \
-    --index-url https://download.pytorch.org/whl/cu128
+    --index-url https://download.pytorch.org/whl/cu124
 
 # pip must be present in the venv — chumpy's setup.py imports it internally
 RUN uv pip install pip
@@ -99,7 +99,7 @@ RUN uv pip install gdown && \
 # ----------------------------------------------------------------------------
 # Run install script (builds CUDA extensions, installs all Python deps)
 # ----------------------------------------------------------------------------
-RUN bash scripts/install_uv.sh
+RUN SKIP_CUDA_CHECK=1 bash scripts/install_uv.sh
 
 # ----------------------------------------------------------------------------
 # Clone mjlab (uses its own uv-managed venv via uv run, prompt: mjlab)

@@ -116,11 +116,16 @@ can_import() { python -c "import $1" 2>/dev/null; }
 # ----------------------------------------------------------------------------
 echo ""
 echo "[1/8] Verifying PyTorch + CUDA..."
-python -c "
+if [ -n "$SKIP_CUDA_CHECK" ]; then
+    echo "  SKIP_CUDA_CHECK set — skipping GPU assertion (build-time mode)"
+    python -c "import torch; print(f'  PyTorch {torch.__version__}, CUDA toolkit {torch.version.cuda} (GPU not checked)')"
+else
+    python -c "
 import torch
 assert torch.cuda.is_available(), 'CUDA not available — check your PyTorch install'
 print(f'  PyTorch {torch.__version__}, CUDA {torch.version.cuda}, GPU: {torch.cuda.get_device_name()}')
 "
+fi
 
 # Derive PyTorch version string for PyG wheel index (e.g. "2.6.0+cu124")
 TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
