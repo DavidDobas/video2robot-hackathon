@@ -7,19 +7,23 @@
 # or on any machine where conda is not available/desired.
 #
 # Prerequisites (system):
-#   apt-get install -y gcc-11 g++-11 libsuitesparse-dev
+#   apt-get install -y gcc-12 g++-12 libsuitesparse-dev ninja-build
+#   ln -s /usr/bin/gcc-12 /usr/bin/gcc-11  # if gcc-11 not available
+#   ln -s /usr/bin/g++-12 /usr/bin/g++-11
 #   uv must be installed: curl -LsSf https://astral.sh/uv/install.sh | sh
 #
 # Usage (run from video2robot repo root):
 #   1. Extract data zip into third_party/PromptHMR/data/ BEFORE running this script:
-#        unzip video2robot_data.zip -d third_party/PromptHMR/data/
+#        unzip -o video2robot_data.zip -d third_party/PromptHMR/data/
 #   2. Create venv and install PyTorch:
-#        uv venv .venv --python 3.11
+#        uv venv .venv --python 3.11 --prompt video2robot
 #        source .venv/bin/activate
 #        UV_HTTP_TIMEOUT=300 uv pip install torch torchvision torchaudio xformers \
-#          --index-url https://download.pytorch.org/whl/cu128
+#          --index-url https://download.pytorch.org/whl/cu124
 #   3. Run this script:
 #        bash scripts/install_uv.sh
+#
+# Idempotent: steps that are already complete are skipped automatically.
 #
 # ============================================================================
 
@@ -42,7 +46,7 @@ echo "============================================"
 if [ ! -d "$PHMR_ROOT/data/pretrain" ]; then
     echo "ERROR: third_party/PromptHMR/data/pretrain not found."
     echo "  Please extract the data zip first:"
-    echo "    unzip video2robot_data.zip -d third_party/PromptHMR/data/"
+    echo "    unzip -o video2robot_data.zip -d third_party/PromptHMR/data/"
     exit 1
 fi
 
@@ -54,10 +58,21 @@ if [ -z "$VIRTUAL_ENV" ]; then
     exit 1
 fi
 
-# GCC-11 for CUDA extension builds
-export CC=/usr/bin/gcc-11
-export CXX=/usr/bin/g++-11
-export CUDAHOSTCXX=/usr/bin/g++-11
+# GCC compiler setup — prefer gcc-11, fall back to gcc-12, then gcc-13
+for ver in 11 12 13; do
+    if [ -f "/usr/bin/gcc-$ver" ]; then
+        export CC=/usr/bin/gcc-$ver
+        export CXX=/usr/bin/g++-$ver
+        export CUDAHOSTCXX=/usr/bin/g++-$ver
+        echo "  Compiler: gcc-$ver"
+        break
+    fi
+done
+
+if [ -z "$CC" ]; then
+    echo "ERROR: No suitable gcc found (tried gcc-11, gcc-12, gcc-13)"
+    exit 1
+fi
 
 # Auto-detect CUDA_HOME if not set
 if [ -z "$CUDA_HOME" ]; then
@@ -87,15 +102,16 @@ export PATH="$CUDA_HOME/bin:$PATH"
 export LD_LIBRARY_PATH="$CUDA_HOME/lib64:${LD_LIBRARY_PATH:-}"
 
 # On Ubuntu apt installs, cuda.h may live in /usr/lib/cuda/include separately
-# (nvidia-cuda-toolkit splits headers from binaries). Add it to CPATH if present.
 if [ -f "/usr/lib/cuda/include/cuda.h" ] && [ "$CUDA_HOME" != "/usr/lib/cuda" ]; then
     export CPATH="/usr/lib/cuda/include:${CPATH:-}"
     echo "  CPATH patched: /usr/lib/cuda/include (Ubuntu split toolkit)"
 fi
 
+# Helper: check if a Python module is importable
+can_import() { python -c "import $1" 2>/dev/null; }
+
 # ----------------------------------------------------------------------------
 # Step 1: PyTorch check
-# Already installed before running this script. Just verify.
 # ----------------------------------------------------------------------------
 echo ""
 echo "[1/9] Verifying PyTorch + CUDA..."
@@ -105,21 +121,22 @@ assert torch.cuda.is_available(), 'CUDA not available — check your PyTorch ins
 print(f'  PyTorch {torch.__version__}, CUDA {torch.version.cuda}, GPU: {torch.cuda.get_device_name()}')
 "
 
+# Derive PyTorch version string for PyG wheel index (e.g. "2.6.0+cu124")
+TORCH_VERSION=$(python -c "import torch; print(torch.__version__)")
+CUDA_TAG=$(python -c "import torch; v=torch.version.cuda.replace('.',''); print(f'cu{v}')")
+
 # ----------------------------------------------------------------------------
-# Step 2: PromptHMR Python dependencies
+# Step 2: PromptHMR + GMR + video2robot Python dependencies
+# uv pip install is fast and idempotent — always run to catch any missing deps
 # ----------------------------------------------------------------------------
 echo ""
-echo "[2/9] Installing PromptHMR Python dependencies..."
+echo "[2/9] Installing Python dependencies..."
 uv pip install -r "$PHMR_ROOT/requirements.txt"
-
-# GMR dependencies
 uv pip install -e "$REPO_ROOT/third_party/GMR"
-
-# video2robot root package
 uv pip install -e "$REPO_ROOT"
 
 # ----------------------------------------------------------------------------
-# Step 3: Submodules + Eigen
+# Step 3: Submodules + Eigen (idempotent by directory checks)
 # ----------------------------------------------------------------------------
 echo ""
 echo "[3/9] Cloning submodules and Eigen..."
@@ -135,21 +152,28 @@ cd "$PHMR_ROOT/pipeline/droidcalib/thirdparty"
 if [ ! -f "lietorch/lietorch/lietorch.py" ]; then
     rm -rf lietorch
     git clone --depth 1 https://github.com/princeton-vl/lietorch.git
+else
+    echo "  lietorch source: already present"
 fi
 
 if [ ! -f "eigen/Eigen/Dense" ]; then
     rm -rf eigen
     git clone --depth 1 https://gitlab.com/libeigen/eigen.git
+else
+    echo "  eigen: already present"
 fi
 
 # ----------------------------------------------------------------------------
 # Step 4: Build lietorch CUDA extension
 # ----------------------------------------------------------------------------
 echo ""
-echo "[4/9] Building lietorch..."
-cd "$PHMR_ROOT/pipeline/droidcalib"
+if can_import lietorch; then
+    echo "[4/9] lietorch: already installed, skipping build"
+else
+    echo "[4/9] Building lietorch..."
+    cd "$PHMR_ROOT/pipeline/droidcalib"
 
-cat > setup.py << 'EOF'
+    cat > setup.py << 'EOF'
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os.path as osp
@@ -184,20 +208,25 @@ setup(
 )
 EOF
 
-rm -rf build/
-python setup.py install
+    rm -rf build/
+    python setup.py install
+fi
 
 # ----------------------------------------------------------------------------
 # Step 5: Build droid_backends_intr CUDA extension
 # ----------------------------------------------------------------------------
 echo ""
-echo "[5/9] Building droid_backends_intr..."
+if can_import droid_backends_intr; then
+    echo "[5/9] droid_backends_intr: already installed, skipping build"
+else
+    echo "[5/9] Building droid_backends_intr..."
+    cd "$PHMR_ROOT/pipeline/droidcalib"
 
-# PyTorch 2.9 API compatibility
-sed -i 's/fmap1\.type()/fmap1.scalar_type()/g' src/altcorr_kernel.cu 2>/dev/null || true
-sed -i 's/volume\.type()/volume.scalar_type()/g' src/correlation_kernels.cu 2>/dev/null || true
+    # PyTorch 2.9 API compatibility
+    sed -i 's/fmap1\.type()/fmap1.scalar_type()/g' src/altcorr_kernel.cu 2>/dev/null || true
+    sed -i 's/volume\.type()/volume.scalar_type()/g' src/correlation_kernels.cu 2>/dev/null || true
 
-cat > setup.py << 'EOF'
+    cat > setup.py << 'EOF'
 from setuptools import setup
 from torch.utils.cpp_extension import BuildExtension, CUDAExtension
 import os.path as osp
@@ -231,53 +260,73 @@ setup(
 )
 EOF
 
-rm -rf build/
-python setup.py install
+    rm -rf build/
+    python setup.py install
+fi
 
 # ----------------------------------------------------------------------------
 # Step 6: torch_scatter + chumpy
+# torch_scatter: use PyG pre-built wheel (much faster than building from source)
 # ----------------------------------------------------------------------------
 echo ""
-echo "[6/9] Installing torch_scatter and chumpy..."
 cd "$PHMR_ROOT"
 
-uv pip install torch_scatter --no-build-isolation
+if can_import torch_scatter && can_import chumpy; then
+    echo "[6/9] torch_scatter + chumpy: already installed, skipping"
+else
+    echo "[6/9] Installing torch_scatter and chumpy..."
 
-mkdir -p python_libs
-if [ ! -f "python_libs/chumpy/setup.py" ]; then
-    rm -rf python_libs/chumpy
-    git clone https://github.com/Arthur151/chumpy python_libs/chumpy
+    if ! can_import torch_scatter; then
+        echo "  Installing torch_scatter from PyG pre-built wheel..."
+        uv pip install torch-scatter \
+            -f "https://data.pyg.org/whl/torch-${TORCH_VERSION}.html" \
+            || uv pip install torch_scatter --no-build-isolation
+    fi
+
+    if ! can_import chumpy; then
+        mkdir -p python_libs
+        if [ ! -f "python_libs/chumpy/setup.py" ]; then
+            rm -rf python_libs/chumpy
+            git clone https://github.com/Arthur151/chumpy python_libs/chumpy
+        fi
+        uv pip install -e python_libs/chumpy --no-build-isolation
+    fi
 fi
-uv pip install -e python_libs/chumpy --no-build-isolation
 
 # ----------------------------------------------------------------------------
 # Step 7: detectron2 + sam2
 # ----------------------------------------------------------------------------
 echo ""
-echo "[7/9] Installing detectron2 + sam2..."
 
-uv pip install 'git+https://github.com/facebookresearch/detectron2.git' --no-build-isolation
-
-# sam2: prefer custom wheel from the data zip (has load_video_frames_from_np patch)
-if [ -f "data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl" ]; then
-    uv pip install data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl
+if can_import detectron2 && can_import sam2; then
+    echo "[7/9] detectron2 + sam2: already installed, skipping"
 else
-    echo "  WARNING: data/wheels/sam2-*.whl not found."
-    echo "  Make sure you extracted the data zip before running this script."
-    echo "  Falling back to PyPI sam2 — some video features may not work."
-    uv pip install sam2
+    echo "[7/9] Installing detectron2 + sam2..."
+
+    if ! can_import detectron2; then
+        uv pip install 'git+https://github.com/facebookresearch/detectron2.git' --no-build-isolation
+    fi
+
+    if ! can_import sam2; then
+        if [ -f "data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl" ]; then
+            uv pip install data/wheels/sam2-1.5-cp311-cp311-linux_x86_64.whl
+        else
+            echo "  WARNING: data/wheels/sam2-*.whl not found, installing from PyPI..."
+            uv pip install sam2
+        fi
+    fi
 fi
 
 # ----------------------------------------------------------------------------
-# Step 8: Verify checkpoints (should all be present from the extracted zip)
+# Step 8: Verify checkpoints
 # ----------------------------------------------------------------------------
 echo ""
-echo "[8/9] Verifying checkpoints from data zip..."
+echo "[8/8] Verifying checkpoints from data zip..."
 cd "$PHMR_ROOT"
 
 MISSING=0
 for f in \
-    "data/pretrain/prompthmr" \
+    "data/pretrain/phmr" \
     "data/pretrain/sam2_ckpts/sam2_hiera_tiny.pt" \
     "data/pretrain/sam2_ckpts/keypoint_rcnn_5ad38f.pkl" \
     "data/pretrain/vitpose-h-coco_25.pth" \
@@ -291,33 +340,11 @@ do
 done
 
 if [ "$MISSING" -eq 1 ]; then
-    echo ""
     echo "  WARNING: Some checkpoints are missing."
     echo "  Make sure you extracted the full data zip:"
-    echo "    unzip video2robot_data.zip -d third_party/PromptHMR/data/"
+    echo "    unzip -o video2robot_data.zip -d third_party/PromptHMR/data/"
 else
     echo "  All checkpoints present: OK"
-fi
-
-# ----------------------------------------------------------------------------
-# Step 9: SMPL / SMPL-X body models check + GMR symlink
-# ----------------------------------------------------------------------------
-echo ""
-echo "[9/9] Creating GMR symlink..."
-
-# GMR symlink: GMR expects smplx at assets/body_models/smplx/
-GMR_DIR="$REPO_ROOT/third_party/GMR"
-GMR_LINK="$GMR_DIR/assets/body_models/smplx"
-PHMR_SMPLX="$PHMR_ROOT/data/body_models/smplx"
-
-if [ -d "$GMR_DIR" ]; then
-    mkdir -p "$GMR_DIR/assets/body_models"
-    if [ ! -L "$GMR_LINK" ] && [ ! -d "$GMR_LINK" ]; then
-        ln -s "$PHMR_SMPLX" "$GMR_LINK"
-        echo "  GMR symlink created: $GMR_LINK -> $PHMR_SMPLX"
-    else
-        echo "  GMR symlink: already exists"
-    fi
 fi
 
 # ----------------------------------------------------------------------------
