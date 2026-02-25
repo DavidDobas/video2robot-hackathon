@@ -1,14 +1,14 @@
 # video2robot - hackathon README
 
 ## Get body models
-If you deployed our container, you have almost everything prepared. You still have to download SMPL and SMPL-X body models, for which you need to register at the corresponding websites
+If you followed our VM setup, you have almost everything prepared. You still have to download SMPL and SMPL-X body models, for which you need to register at the corresponding websites
 
 - SMPL-X: https://smpl-x.is.tue.mpg.de/register.php
 - SMPL: https://smpl.is.tue.mpg.de/register.php
 
-Then inside the container, run the following and use the credentials
+Then inside the video2robot folder, run the following and use the credentials
 ```bash
-bash /workspace/video2robot/scripts/fetch_body_models.sh
+bash ./scripts/fetch_body_models.sh
 ```
 
 ## Run the pipeline
