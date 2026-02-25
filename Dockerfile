@@ -48,6 +48,8 @@ ENV PYTHONUNBUFFERED=1
     ca-certificates \
     libgl1 \
     libglib2.0-0 \
+    ffmpeg \
+    tmux \
     && ln -sf /usr/bin/gcc-12 /usr/bin/gcc-11 \
     && ln -sf /usr/bin/g++-12 /usr/bin/g++-11 \
     && rm -rf /var/lib/apt/lists/*
@@ -102,6 +104,14 @@ COPY video2robot_data.zip /tmp/video2robot_data.zip
 RUN unzip -o /tmp/video2robot_data.zip -d third_party/PromptHMR/data/ && \
     rm /tmp/video2robot_data.zip
 
+# PromptHMR hardcodes /code/data when running inside Docker (detects /.dockerenv)
+RUN mkdir -p /code && ln -s /workspace/video2robot/third_party/PromptHMR/data /code/data
+
+# GMR expects body models at assets/body_models/smplx/ — symlink from PromptHMR's copy
+RUN mkdir -p /workspace/video2robot/third_party/GMR/assets/body_models && \
+    ln -s /workspace/video2robot/third_party/PromptHMR/data/body_models/smplx \
+          /workspace/video2robot/third_party/GMR/assets/body_models/smplx
+
 # ----------------------------------------------------------------------------
 # Run install script (builds CUDA extensions, installs all Python deps)
 # ----------------------------------------------------------------------------
@@ -114,7 +124,7 @@ RUN SKIP_CUDA_CHECK=1 bash scripts/install_uv.sh
 # Clone mjlab (uses its own uv-managed venv via uv run, prompt: mjlab)
 # ----------------------------------------------------------------------------
 WORKDIR /workspace
-RUN git clone --depth 1 https://github.com/mujocolab/mjlab.git mjlab && \
+RUN git clone --depth 1 https://github.com/DavidDobas/mjlab-hackathon.git mjlab && \
     cd mjlab && \
     git remote remove origin
 
